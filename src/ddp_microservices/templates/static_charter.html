@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_macros.html" import view_header, view_region with context %}
+{% from "_charter_modes.html" import charter_viewer, mode_panel,
+     mode_image_fit, mode_cei_xml, mode_image_column with context %}
+
+{# make every live sibling link to THIS charter in the topnav #}
+{% set sibling_md5 = obj.md5_id %}
+
+{% block title %}Charter {{ obj.archival_signature }}{% endblock %}
+
+{# client-side basket ("shopping cart"); it reads the standardized views below #}
+{% block topnav_extra %}{% include "_basket.html" %}{% endblock %}
+
+{% block content %}
+  {% set image_ids = obj.guessed_imageid_order %}
+  {% set iiif_prefix = route_prefix ~ "/iiif/" %}
+  {% set cei_url = route_prefix ~ "/get_cei/" ~ obj.md5_id %}
+  {% call view_region('charter', obj.md5_id, context=True) %}
+  <div class="static_charter ddp-view-body">
+    {{ view_header([
+        ("FSDB", route_prefix ~ "/paged_fsdb/"),
+        (obj.archive.name, route_prefix ~ "/archive/" ~ obj.archive.name),
+        (obj.fond.name, route_prefix ~ "/fond/" ~ obj.fond.name),
+        (obj.md5_id, none),
+    ], summary=obj.archival_signature ~ " " ~ obj.archive.flag_emoji) }}
+
+    <div class="ddp-view-subhead">
+      <a href="{{ obj.mom_url }}" title="View in MOM">
+        <img src="{{ url_for('static', filename='mom_icon.png') }}" height="24" alt="View in MOM"></a>
+    </div>
+
+    {# shared greedy charter viewer: the three Static modes, main image first (CEI.xml is now a mode) #}
+    {% call charter_viewer([
+         {'id': 'image',  'label': 'image',   'enabled': image_ids|length > 0},
+         {'id': 'cei',    'label': 'CEI xml', 'enabled': cei_url is not none},
+         {'id': 'column', 'label': 'images',  'enabled': image_ids|length > 0},
+       ], default='image') %}
+      {% call mode_panel('image')  %}{{ mode_image_fit(image_ids, iiif_prefix) }}{% endcall %}
+      {% call mode_panel('cei')    %}{{ mode_cei_xml(cei_url) }}{% endcall %}
+      {% call mode_panel('column') %}{{ mode_image_column(image_ids, iiif_prefix) }}{% endcall %}
+    {% endcall %}
+  </div>
+  {% endcall %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{#
+  Shared child-entity listing: the ONE table used for archives-under-root, fonds-under-archive and
+  charters-under-fond, so the listing never moves or restyles between views (or between services).
+  Styled by .ddp-listing / .ddp-entity-list in static/ddp_style.css -- two cells per row, an index
+  column (.idx, right-aligned tabular numerals) and the linked label, with zebra striping.
+
+  A macro module (like _charter_modes.html), not an {% include %}: the listing is parameterised, so
+  the caller passes its data explicitly instead of relying on which loop variables happen to be in
+  scope.
+
+    {% from "_entity_listing.html" import entity_listing %}
+    {{ entity_listing(charterlist, route_prefix ~ "/charter/", drag=True) }}
+
+    items       - a sequence of (index, id, label) triples. This is deliberately the shape the
+                  paged views already build (`charter.0/.1/.2`), so swapping their hand-rolled
+                  <table> for this macro needs no change to the Python that feeds them. `index` is
+                  carried by the item rather than counted here, so it stays correct across pages.
+    href_prefix - each row links to `href_prefix ~ id` (e.g. "/st/fond/").
+    drag        - charter listings only: tag each row with data-charter-md5 so it can be dragged
+                  into the basket. Requires the page (or base.html) to load static/ddp_drag.js,
+                  which wires every [data-charter-md5] element it finds, including ones added later.
+#}
+{% macro entity_listing(items, href_prefix, drag=False) -%}
+<div class="ddp-listing">
+  <table class="ddp-entity-list">
+    {%- for index, id, label in items %}
+    <tr{% if drag %} data-charter-md5="{{ id }}"{% endif %}>
+      <td class="idx">{{ index }}</td>
+      <td><a href="{{ href_prefix }}{{ id }}">{{ label }}</a></td>
+    </tr>
+    {%- endfor %}
+  </table>
+</div>
+{%- endmacro %}

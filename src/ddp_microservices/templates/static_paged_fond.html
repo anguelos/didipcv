@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import breadcrumb, view_region, view_marker %}
+
+{% block title %}Fond {{ obj.name }}{% endblock %}
+
+{# client-side basket; it reads the standardized views below (context = this fond) #}
+{% block topnav_extra %}{% include "_basket.html" %}{% endblock %}
+
+{% block content %}
+  {# A fond page = the fond's own region + the (page-scoped) charter set, as sibling views;
+     the ancestor archive is a value-only marker (no region). No nested view divs. #}
+  <div class="list_charters">
+    {% call view_region('fond', obj.name, context=True) %}
+      {{ breadcrumb([
+          ("FSDB", route_prefix ~ "/paged_fsdb/"),
+          (obj.archive.name, route_prefix ~ "/archive/" ~ obj.archive.name),
+          (obj.name, route_prefix ~ "/fond/" ~ obj.name),
+      ]) }}
+      <h2>Contained Charters: {{ obj.charter_paths|length }}</h2>
+    {% endcall %}
+    {% call view_region('charter_list', viewed_charter_list|join(' ')) %}
+      {% if obj.charter_paths|length > 10 %}
+        {% include "generic_pagination.html" %}
+      {% endif %}
+      <table border="0">
+        {% for charter in charterlist %}
+          <tr><td>{{ charter.0 }}</td><td><a href="{{ route_prefix }}/charter/{{ charter.1 }}">{{ charter.2 }}</a></td></tr>
+        {% endfor %}
+      </table>
+      {% if obj.charter_paths|length > 10 %}
+        {% include "generic_pagination.html" %}
+      {% endif %}
+    {% endcall %}
+    {{ view_marker('archive', obj.archive.name) }}
+  </div>
+{% endblock %}

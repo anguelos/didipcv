@@ -1,0 +1,98 @@
+{#
+  Shared charter-viewer framework + mode library.
+
+  Every service's charter view is the SAME greedy full-height box with a single radio-button row
+  of "view modes" at the top, so nothing jumps when you switch microservices. The framework here
+  is just the chrome (container + radio row + panels); the individual MODES are pluggable -- a
+  service composes the set it offers and which one is the default. Not every service implements
+  every mode ("share different things"): Static offers the three image/CEI modes below; cei2json
+  and layout add their own mode macros and pick a different default.
+
+  Usage (inside a view_region('charter', md5, context=True)):
+
+    {% from "_charter_modes.html" import charter_viewer, mode_panel,
+         mode_image_fit, mode_cei_xml, mode_image_column with context %}
+
+    {% call charter_viewer([
+         {'id':'image', 'label':'image',  'enabled': image_ids|length > 0},
+         {'id':'cei',   'label':'CEI xml','enabled': cei_url is not none},
+         {'id':'column','label':'images', 'enabled': image_ids|length > 0},
+       ], default='image') %}
+      {% call mode_panel('image')  %}{{ mode_image_fit(image_ids, iiif_prefix) }}{% endcall %}
+      {% call mode_panel('cei')    %}{{ mode_cei_xml(cei_url) }}{% endcall %}
+      {% call mode_panel('column') %}{{ mode_image_column(image_ids, iiif_prefix) }}{% endcall %}
+    {% endcall %}
+
+  `image_ids`   : ordered image md5s (Static Charter.guessed_imageid_order == CH.image_urls.json order).
+  `iiif_prefix` : URL prefix a bare "<id>/full/,H/0/default.jpg" appends to (e.g. route_prefix ~ "/iiif/").
+  `cei_url`     : URL that returns the raw CEI xml, or None to grey out the CEI mode.
+
+  Behaviour (height-fitting, radio switching, lazy CEI fetch, image nav) lives in static/ddp_charter.js.
+#}
+
+{#-- the greedy container + the single radio row; panels are supplied by the caller via mode_panel --#}
+{% macro charter_viewer(modes, default) %}
+<div class="ddp-charter-viewer" data-default-mode="{{ default }}">
+  <div class="ddp-mode-row" role="radiogroup" aria-label="view mode">
+    {% for m in modes %}
+      <label class="ddp-mode{% if not m.enabled %} disabled{% endif %}"
+             {% if not m.enabled %}title="not available for this charter"{% endif %}>
+        <input type="radio" name="ddp-charter-mode" value="{{ m.id }}"
+               {% if not m.enabled %}disabled{% endif %}
+               {% if m.id == default %}checked{% endif %}>
+        <span>{{ m.label }}</span>
+      </label>
+    {% endfor %}
+  </div>
+  <div class="ddp-mode-panels">
+    {{ caller() }}
+  </div>
+</div>
+{% endmacro %}
+
+{#-- one panel per mode; the framework shows the panel whose data-mode matches the checked radio --#}
+{% macro mode_panel(id) %}
+<section class="ddp-mode-panel" data-mode="{{ id }}" hidden>{{ caller() }}</section>
+{% endmacro %}
+
+{#-- MODE: a single image fitted to the available height; prev/next steps through image_ids in order,
+     so the first (main) image shows by default. Images are requested by IIIF height; CSS fits them. --#}
+{% macro mode_image_fit(image_ids, iiif_prefix) %}
+<div class="ddp-imgfit" data-count="{{ image_ids|length }}">
+  {% if image_ids|length > 1 %}
+    <button class="ddp-imgfit-nav prev" type="button" aria-label="previous image">&#8249;</button>
+    <button class="ddp-imgfit-nav next" type="button" aria-label="next image">&#8250;</button>
+    <div class="ddp-imgfit-counter" aria-live="polite"></div>
+  {% endif %}
+  <div class="ddp-imgfit-stage">
+    {% for id in image_ids %}
+      <img class="ddp-imgfit-img{% if loop.first %} current{% endif %}" data-i="{{ loop.index0 }}"
+           src="{{ iiif_prefix }}{{ id }}/full/,1600/0/default.jpg"
+           loading="{% if loop.first %}eager{% else %}lazy{% endif %}"
+           alt="image {{ loop.index }} of {{ image_ids|length }}">
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
+{#-- MODE: read-only, copyable panel with the raw CEI xml. The text is lazy-fetched from cei_url the
+     first time this mode is shown (ddp_charter.js); if cei_url is falsy the radio is disabled upstream. --#}
+{% macro mode_cei_xml(cei_url) %}
+<div class="ddp-cei" data-cei-url="{{ cei_url or '' }}">
+  <div class="ddp-cei-toolbar">
+    <button class="ddp-cei-copy" type="button">copy</button>
+    {% if cei_url %}<a class="ddp-cei-raw" href="{{ cei_url }}" target="_blank" rel="noopener">open raw</a>{% endif %}
+  </div>
+  <pre class="ddp-cei-text" tabindex="0" aria-readonly="true">…</pre>
+</div>
+{% endmacro %}
+
+{#-- MODE: every image stacked in a scrollable column, each resized to occupy the full width. --#}
+{% macro mode_image_column(image_ids, iiif_prefix) %}
+<div class="ddp-imgcol">
+  {% for id in image_ids %}
+    <img class="ddp-imgcol-img" src="{{ iiif_prefix }}{{ id }}/full/1400,/0/default.jpg"
+         loading="lazy" alt="image {{ loop.index }} of {{ image_ids|length }}">
+  {% endfor %}
+</div>
+{% endmacro %}

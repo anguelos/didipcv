@@ -1,0 +1,21 @@
+{
+    "MICROSERVICES": [
+        {"name": "Static", "ip": "127.0.0.1", "port": 5000, "protocol": "http", "icon": "static/icon_static_1.svg", "host": "", "monitor_frequency": 20 },
+        {"name": "Detection", "ip": "127.0.0.1", "port": 5001, "protocol": "http", "icon": "static/icon_detection_1.svg", "host": "", "monitor_frequency": 20},
+        {"name": "Layout", "ip": "127.0.0.1", "port": 5003, "protocol": "http", "icon": "static/icon_layout.svg", "host": "", "monitor_frequency": 20},
+        {"name": "FastSearch", "ip": "127.0.0.1", "port": 5002, "protocol": "http", "icon": "static/icon_detection_1.svg", "host": "", "monitor_frequency": 20},
+        {"name": "Slicer", "ip": "0.0.0.0", "port": 5006, "protocol": "http", "icon": "static/icon_slice.svg", "host": "127.0.0.1", "monitor_frequency": 20,  "max_charter_count_allowed": 2000}
+    ],
+    "MICROSERVICE_MONITOR_INTERVAL": 10,
+
+    "CONFIG_PATHS": [
+        "${HOME}/.ddp_config.json",
+        "${APP_DIR}/ddp_config.json"
+    ],
+    "FSDB_ROOT": "${HOME}/tmp/1000CV",
+    
+    "APPS": {
+        "ddp_cei" :{},
+        "slicer": {"max_charter_count_allowed": 2000}
+    }
+}

@@ -1,0 +1,30 @@
+# sshd for in-container debugging. Key-only: there are no passwords anywhere in these images, and
+# there must never be -- a container with password auth on a published port is a standing invitation.
+#
+# Port 2222, not 22: ports below 1024 need root to bind, and these containers may run as an
+# unprivileged user. compose publishes it on a per-service host port.
+Port 2222
+
+# The ONLY accepted credential is a key from docker/authorized_keys.
+PubkeyAuthentication yes
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+
+# root by key is what gives a usable debug shell (the image has no `su` dance); `prohibit-password`
+# means the key is the only way in -- a password login as root is refused even if one existed.
+PermitRootLogin prohibit-password
+
+# PAM off: it expects /etc/pam.d wiring and a real login stack, neither of which a slim container
+# has, and leaving it on is a common "Authentication refused" dead end.
+UsePAM no
+
+AuthorizedKeysFile .ssh/authorized_keys
+
+# no X11/agent/tunnel plumbing -- this is a debug shell, not a jump host
+X11Forwarding no
+AllowAgentForwarding no
+PrintMotd no
+AcceptEnv LANG LC_*
+Subsystem sftp /usr/lib/openssh/sftp-server

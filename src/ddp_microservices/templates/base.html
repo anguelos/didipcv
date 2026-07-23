@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+{#
+  Shared layout for every DiDip microservice page. The rendering service supplies the
+  common context via DidipMicroservice.render_context():
+    service_name  - the service class name (topnav label / alt text)
+    service_icon  - basename of this service's icon under its own static/ (or None)
+    service_url   - this service's own base url
+    siblings      - live sibling services: [{name, url, icon}, ...] (icon is "static/...")
+  A page may set `sibling_md5` so the sibling links point at the SAME charter
+  (/charter/<md5>) on every live sibling -- this is the cross-service glue that replaces
+  the old hard-coded per-service links. Otherwise siblings link to their home page.
+#}
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {# this service's owned path prefix (e.g. "/st"); client JS reads it to build API/asset URLs
+       so everything works behind a single-origin gateway (own-the-prefix). #}
+    <meta name="ddp-base" content="{{ route_prefix }}">
+    <title>{% block title %}{{ service_name }}{% endblock %}</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='ddp_style.css') }}">
+    <link rel="icon" href="{{ route_prefix }}/icon.ico">
+    {# Restore the context rail's state BEFORE first paint (a deferred module would flash): the width
+       the user dragged to, and whether it is totally collapsed. Absent width -> the stylesheet's 0px
+       until ddp_ctxnav.js applies the configured default. Behaviour lives in static/ddp_ctxnav.js. #}
+    <script>
+      (function () {
+        try {
+          var d = document.documentElement, pct = localStorage.getItem("ddp:ctxnav:pct");
+          if (localStorage.getItem("ddp:ctxnav:collapsed") === "1") d.classList.add("ctxnav-collapsed");
+          else if (pct) d.style.setProperty("--ddp-ctxnav-w", pct + "%");
+        } catch (e) { /* storage disabled: the module applies the defaults a moment later */ }
+      })();
+    </script>
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body>
+    <div class="topnav">
+      {# the service box: THIS service (highlighted "current") + every known sibling, sorted by
+         prefix, down ones greyed, capability-filtered hand-off, absolute-or-root-relative per `absolute_links` (see
+         _siblings.html). The current service's own icon is the first-class member of this box. #}
+      {% include "_siblings.html" %}
+
+      {# per-page extra controls. The basket now lives in the context rail below, so `_basket.html`
+         is an empty legacy shim -- this block is free for other page-specific chrome. #}
+      {% block topnav_extra %}{% endblock %}
+
+      {# the ONLY thing left of the rail once it is totally collapsed (devtools-style): shown by CSS
+         when <html> carries .ctxnav-collapsed, floated to the right end of the topnav. #}
+      <button type="button" id="ctx_nav_expand" class="ctx-nav-expand"
+              title="Show the context panel" aria-controls="ctx_nav" aria-expanded="true">‹</button>
+    </div>
+
+    {# ---- context navigation rail --------------------------------------------------------------
+       A full-height dock on the right of EVERY view, hosting all basket-related UI. It is fixed, so
+       its position in the DOM is free -- it sits here, ahead of the content, only so the basket
+       widget's mount promise (window.ddpBasketWidgetReady) is published before a page's
+       `_scope.html` awaits it. Width/collapse: --ddp-ctxnav-w + .ctxnav-collapsed on <html>. #}
+    <aside id="ctx_nav" class="ctx-nav" aria-label="Context panel">
+      <div class="ctx-nav-resize" title="Drag to resize · double-click to reset"></div>
+      <div class="ctx-nav-head">
+        <span class="ctx-nav-title">context</span>
+        <button type="button" class="ctx-nav-collapse" title="Collapse the context panel"
+                aria-controls="ctx_nav" aria-expanded="true">›</button>
+      </div>
+      <div class="ctx-nav-body">
+        {# the basket needs this service's shared index (/<prefix>/basket + /basket/db); a plain
+           DidipMicroservice has no such routes, so it gets the rail without the basket. #}
+        {% if has_shared_index %}<div id="ctx_nav_basket"></div>{% endif %}
+        {% block ctx_nav_extra %}{% endblock %}
+      </div>
+      {% if has_shared_index %}
+      {# Shared-index status, pinned under the rail: ✓/✗ for "our cached index matches the server's"
+         plus a forced re-fetch. DEVELOPER-MODE ONLY -- CSS hides it unless <body> carries .ddp-debug
+         (the basket widget toggles that from CLIENT_CONFIG.developer_mode / window.ddpDebug). #}
+      <div class="ctx-nav-foot" id="ctx_nav_index">
+        <span class="ctx-nav-idx-label">index</span>
+        <span class="ctx-nav-idx-mark" aria-live="polite" title="checking…">…</span>
+        <span class="ctx-nav-idx-hash">—</span>
+        <button type="button" class="ctx-nav-idx-update"
+                title="Force a fresh fetch of the shared index">update</button>
+      </div>
+      {% endif %}
+    </aside>
+    {% if has_shared_index %}
+    <script type="module">
+      import { mountBasketWidget } from "{{ url_for('static', filename='fsdb_basket.js') }}";
+      // publish the pending mount so other shared modules (ddp_scope.js) can await the SAME
+      // widget/store instead of racing it or opening a second BasketStore.
+      window.ddpBasketWidgetReady = mountBasketWidget(document.getElementById("ctx_nav_basket"));
+    </script>
+    {% endif %}
+
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+
+    {# Global bottom message bar (collapsed by default; expands upward). Any client code posts
+       a message with:  document.dispatchEvent(new CustomEvent('ddp:message', {detail:{text}}))
+       Behaviour + styling live in static/fsdb_messagebar.js. #}
+    <div id="ddp-msgbar" class="ddp-msgbar collapsed">
+      <div class="ddp-msg-log" aria-live="polite"></div>
+      <div class="ddp-msg-head">
+        <button class="ddp-msg-toggle" type="button" title="Expand messages">▲</button>
+        <span class="ddp-msg-last" title="last message"></span>
+        <button class="ddp-msg-clear" type="button" title="Clear all messages">Clear</button>
+      </div>
+    </div>
+    <script type="module" src="{{ url_for('static', filename='fsdb_messagebar.js') }}"></script>
+    {# the context rail: collapse (devtools-style, no strip left behind) + edge-drag resize #}
+    <script type="module" src="{{ url_for('static', filename='ddp_ctxnav.js') }}"></script>
+    {# remember the collapsed/expanded state of the standardized view descriptions, per view type #}
+    <script type="module" src="{{ url_for('static', filename='ddp_collapse.js') }}"></script>
+    {# shared charter viewer: height-fit + radio view-mode switching (no-op when no viewer on page) #}
+    <script type="module" src="{{ url_for('static', filename='ddp_charter.js') }}"></script>
+    {% if has_shared_index %}
+    {# make every [data-charter-md5] element (entity_listing rows, thumbnails) draggable into the
+       basket. Gated on the shared index because it imports fsdb_basket.js for the payload MIME. #}
+    <script type="module" src="{{ url_for('static', filename='ddp_drag.js') }}"></script>
+    {% endif %}
+
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

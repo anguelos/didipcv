@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import breadcrumb, view_region %}
+
+{% block title %}FSDB{% endblock %}
+
+{% block content %}
+  {% call view_region('root', context=True) %}
+  <div class="list_archives">
+    {{ breadcrumb([("FSDB", route_prefix ~ "/paged_fsdb/")]) }}
+    <h2>at {{ obj.root_path }}</h2>
+    <h2>
+      {% for country, country_offset, count in country_count %}
+        <a href="{{ route_prefix }}/paged_fsdb/{{ country_offset }}/{{ count }}" title="{{ count }}">{{ country }}</a>
+      {% endfor %}
+    </h2>
+    <h2>Contained Archives: {{ obj.archive_paths|length }}</h2>
+    {% if obj.archive_paths|length > 10 %}
+      {% include "generic_pagination.html" %}
+    {% endif %}
+    <table border="0">
+      {% for archive in archivelist %}
+        <tr><td>{{ archive.0 }}</td><td><a href="{{ route_prefix }}/archive/{{ archive.1 }}">{{ archive.2 }}</a></td></tr>
+      {% endfor %}
+    </table>
+    {% if obj.archive_paths|length > 10 %}
+      {% include "generic_pagination.html" %}
+    {% endif %}
+  </div>
+  {% endcall %}
+{% endblock %}

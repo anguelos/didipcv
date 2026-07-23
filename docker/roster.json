@@ -1,0 +1,7 @@
+[
+  {"prefix": "st",  "base_url": "http://st:7001",  "name": "Static FSDB",     "launch_cmd": "ddpa_static_fsdb_serve"},
+  {"prefix": "sl",  "base_url": "http://sl:7005",  "name": "Slicer",          "launch_cmd": "ddpa_slicer_serve"},
+  {"prefix": "cei", "base_url": "http://cei:7006", "name": "CEI2JSON",        "launch_cmd": "ddpa_cei2json_serve"},
+  {"prefix": "tex", "base_url": "http://tex:7007", "name": "Texture",         "launch_cmd": "ddpa_texture_serve"},
+  {"prefix": "sly", "base_url": "http://sly:7009", "name": "Layout (scoped)", "launch_cmd": "ddpa_layout_serve"}
+]

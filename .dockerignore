@@ -1,0 +1,50 @@
+# Keep the build context small and reproducible. `tmp/` matters most: it is the project's scratch
+# area (see .gitignore) and holds sample FSDB material -- shipping it into the context would send
+# hundreds of MB to the daemon on every build.
+tmp/
+tmp*
+
+.git/
+.gitignore
+.claude/
+__pycache__/
+*.py[cod]
+# `**/` matters: a bare `*.egg-info/` does NOT match src/didip_util.egg-info/, because `*` never
+# crosses a `/`. That stale egg-info carries a SOURCES.txt from an older build, and setuptools will
+# happily use it as the file manifest -- which is how a container ended up with 15 templates and
+# zero static files.
+**/*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+docs/_build/
+doc/
+test/
+node_modules/
+.venv/
+venv/
+
+# secrets: .env holds CLOUDFLARE_TUNNEL_TOKEN / DDP_GATEWAY_PASSWORD for compose. It is gitignored,
+# and it must not reach the daemon either -- anything in the build context can end up in a layer.
+.env
+.env.*
+!.env.example
+.ddp_secrets.sh
+*secrets*
+*.pem
+*.key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+.mypy_cache/
+.ipynb_checkpoints/
+
+# the docker artefacts themselves are not needed inside the image
+Dockerfile
+.dockerignore
+docker-compose.yml
+# NOTE: `docker/` is deliberately NOT excluded -- the Dockerfile COPYs docker/sshd_config,
+# docker/authorized_keys and docker/ddp-entrypoint.sh out of it. Excluding it makes the build fail
+# with "file not found in build context". (roster.json is bind-mounted by compose, not copied.)

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}400 Bad Request{% endblock %}
+
+{% block content %}
+  <div class="error_400">
+    <h1>400 Bad Request</h1>
+    <p>{{ error_message }}</p>
+  </div>
+{% endblock %}

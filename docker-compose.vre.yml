@@ -1,0 +1,132 @@
+# The whole DiDip VRE from ONE image, configured by ONE file (.env).
+#
+#     cp .env.example .env      # edit DDP_FSDB_ROOT, and the token if you want the tunnel
+#     docker compose -f docker-compose.vre.yml up -d --build
+#     xdg-open http://localhost:7080/
+#
+# `.env` is read automatically from this directory, so no variable has to be exported and no
+# script has to be sourced. Nothing else outside the image is needed: the roster is baked in.
+#
+# This is the DEMO topology -- every service runs from didip-vre:latest and differs only in its
+# command. For the composable one-image-per-app setup use docker-compose.yml instead.
+name: didip-vre
+
+x-service: &svc
+  image: didip-vre:latest
+  build:
+    # DEFAULTS TO GITHUB: docker clones the repo and uses it as the build context, so the image is
+    # built entirely from pushed code -- Dockerfile, src/ and the baked-in roster all come from the
+    # ref. Nothing local is needed but this file and .env.
+    # Set DIDIPCV_CONTEXT=. in .env to build from your working tree instead (development).
+    context: "${DIDIPCV_CONTEXT:-https://github.com/anguelos/didipcv.git#${DIDIPCV_REF:-main}}"
+    dockerfile: Dockerfile
+    target: didip-vre
+    args:
+      # empty -> each repo's own default branch (layout is `master`, others `main`); set to pin
+      LAYOUT_REF: "${LAYOUT_REF:-}"
+      CEI_REF: "${CEI_REF:-}"
+      TEXTURE_REF: "${TEXTURE_REF:-}"
+      # WITH_TORCH=1 installs CPU torch in the base. cei2json needs it (pylelemmatize imports
+      # torch unconditionally); empty keeps the image smaller and cei will fail to start.
+      WITH_TORCH: "${WITH_TORCH:-}"
+  user: "${DDP_USER:-1000:1000}"
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  networks: [didip]
+  volumes:
+    # read-only: an online service is defined never to write into the FSDB
+    - "${DDP_FSDB_ROOT:?set DDP_FSDB_ROOT in .env (the FSDB directory on the host)}:/mnt/data/fsdb:ro"
+
+# Every backend takes the same flags; only the CLI and the advertised --host differ. DOUBLE dashes
+# are mandatory: fargv reads a single dash as a cluster of short flags, and `-proxy_url ...` is
+# SILENTLY ignored (the service would come up proxyless). `-v` is a genuine short flag.
+x-serve: &serve_env
+  DDP_SSHD: "${DDP_SSHD:-1}"
+
+services:
+  gateway:
+    <<: *svc
+    environment:
+      DDP_GATEWAY_PASSWORD: "${DDP_GATEWAY_PASSWORD:-}"
+      DDP_GATEWAY_TRUSTED_PROXY_CIDR: "${DDP_TRUSTED_PROXY_CIDR:-}"
+    command: >
+      ddp_gateway --bind 0.0.0.0 --gateway_port 8080
+                  --roster /etc/didip/roster.json --ms_health_freq 15
+    ports:
+      - "${DDP_PUBLISHED_PORT:-7080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  st:                                     # Static FSDB   -- ms_id 1 -> 7001
+    <<: *svc
+    environment: *serve_env
+    command: >
+      ddpa_static_fsdb_serve --bind 0.0.0.0 --host st --base_port 7000
+                             --fsdb_root /mnt/data/fsdb --proxy_url http://gateway:8080 -v
+    depends_on: [gateway]
+
+  sl:                                     # Slicer        -- ms_id 5 -> 7005
+    <<: *svc
+    environment: *serve_env
+    command: >
+      ddpa_slicer_serve --bind 0.0.0.0 --host sl --base_port 7000
+                        --fsdb_root /mnt/data/fsdb --proxy_url http://gateway:8080 -v
+    depends_on: [gateway]
+
+  cei:                                    # CEI2JSON      -- ms_id 6 -> 7006
+    <<: *svc
+    environment: *serve_env
+    command: >
+      ddpa_cei2json_serve --bind 0.0.0.0 --host cei --base_port 7000
+                          --fsdb_root /mnt/data/fsdb --proxy_url http://gateway:8080 -v
+    depends_on: [gateway]
+
+  tex:                                    # Texture       -- ms_id 7 -> 7007
+    <<: *svc
+    environment: *serve_env
+    # The model bundle is baked into the image at build time (fetched from GitHub -- see the
+    # Dockerfile), so there is NO host mount: this service inherits the anchor's FSDB-only volumes.
+    command: >
+      ddpa_texture_serve --bind 0.0.0.0 --host tex --base_port 7000
+                         --fsdb_root /mnt/data/fsdb --proxy_url http://gateway:8080
+                         --model_bundle_path /opt/texture_model_bundle.pkl -v
+    depends_on: [gateway]
+
+  sly:                                    # Layout (scoped) -- ms_id 9 -> 7009
+    <<: *svc
+    environment: *serve_env
+    command: >
+      ddpa_layout_serve --bind 0.0.0.0 --host sly --base_port 7000
+                        --fsdb_root /mnt/data/fsdb --proxy_url http://gateway:8080 -v
+    depends_on: [gateway]
+
+  # ---- Cloudflare tunnel (opt-in: COMPOSE_PROFILES=tunnel or tunnel-token in .env) ----------
+  # >>> Set DDP_TRUSTED_PROXY_CIDR=172.16.0.0/12 when tunnelling, or every visitor looks like the
+  # >>> sidecar to the password gate AND /health + /roster become publicly readable.
+  tunnel:                                 # ephemeral trycloudflare.com URL, no account needed
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://gateway:8080
+    depends_on: [gateway]
+    networks: [didip]
+
+  tunnel-named:                           # your named tunnel; hostname configured in Cloudflare
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel-token]
+    restart: unless-stopped
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:-}"
+    command: tunnel --no-autoupdate run
+    depends_on: [gateway]
+    networks: [didip]
+
+networks:
+  didip:
+    driver: bridge

@@ -1,0 +1,15 @@
+{# Scope activation for a server-rendered SCOPED page. Include it wherever the page is rendered
+   under the active basket, and emit the marker the module reads:
+
+     {% include "_scope.html" %}
+     <div id="ddp-scope" data-basepath="{{ route_prefix }}/classes"
+          {% if applied %}data-applied="1"{% endif %} hidden></div>
+
+   `data-basepath` is the page to re-render when the basket changes; `data-applied` tells the
+   client the server already rendered under a scope (so it does not reconcile in a loop).
+   Everything else -- POSTing the basket, intercepting `a.ddp-nav` links so paging keeps its
+   scope, reconciling on load -- lives in static/ddp_scope.js. See the ddp_online skill. #}
+<script type="module">
+  import { autoInitScope } from "{{ url_for('static', filename='ddp_scope.js') }}";
+  autoInitScope();
+</script>

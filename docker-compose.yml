@@ -1,0 +1,165 @@
+# The didipcv services: a single-origin gateway in front of Static FSDB and the Slicer.
+#
+#   DDP_FSDB_ROOT=/mnt/data/full_fsdb/fsdb docker compose up --build
+#
+# then open http://localhost:7080/ . Only the gateway is published; the services are reachable
+# solely through it, on the private `didip` network -- which is also what makes the browser see one
+# origin, the precondition for shared baskets (OPFS is per-origin).
+#
+# PORTS. The in-container ports are FIXED at base_port 7000 (st -> 7001, sl -> 7005, from
+# base_port + ms_id) and are deliberately not configurable: they live inside the compose network
+# and cannot collide with anything on the host. Only DDP_PUBLISHED_PORT touches the host, and it
+# defaults to 7080 to stay clear of the 5000 (MariaPia), 6000 (full FSDB) and 8080 (gateway)
+# deployments that may already be running.
+name: didipcv
+
+x-didip: &didip
+  image: didipcv:latest
+  build:
+    context: .
+    dockerfile: Dockerfile
+  # The FSDB is bind-mounted from the host, so the container uid must be able to READ it. Override
+  # with DDP_USER (e.g. `DDP_USER=$(id -u):$(id -g)`) when 1000 is not you.
+  # DDP_USER=0:0 runs the containers as root, which is what the in-container sshd needs to start
+  # (see docker/ddp-entrypoint.sh). Without it you still get a shell via `docker compose exec`.
+  user: "${DDP_USER:-1000:1000}"
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  networks: [didip]
+
+services:
+  # ---- the single origin -------------------------------------------------------------------
+  gateway:
+    <<: *didip
+    # No FSDB mount: the gateway only forwards. Its roster is the authoritative list of backends,
+    # and the base_urls MUST be the compose service names -- 127.0.0.1 inside a container is the
+    # container itself.
+    volumes:
+      - ./docker/roster.json:/etc/didip/roster.json:ro
+    # DDP_GATEWAY_PASSWORD is fargv's env override for `-password` (APPNAME_PARAMNAME). Set it to
+    # put the manual gate in front of everything; unset/empty leaves the gateway open.
+    # NOTE the gate keys on the client IP, and behind Docker's userland proxy every external client
+    # can appear as the bridge address -- see doc/docker_images.md before relying on it.
+    environment:
+      DDP_GATEWAY_PASSWORD: "${DDP_GATEWAY_PASSWORD:-}"
+      # Set when a cloudflared sidecar (or any front proxy) is in play, to the network it sits on:
+      #   DDP_TRUSTED_PROXY_CIDR=172.16.0.0/12
+      # The gateway then reads the real visitor from CF-Connecting-IP instead of seeing every
+      # request as the sidecar. Leave EMPTY for a directly-reachable gateway -- trusting those
+      # headers from an untrusted peer would let anyone whitelist themselves. Empty also means the
+      # /health + /roster local-exemption is inherited by anyone coming through a tunnel.
+      DDP_GATEWAY_TRUSTED_PROXY_CIDR: "${DDP_TRUSTED_PROXY_CIDR:-}"
+    # NOTE the DOUBLE dashes. fargv parses argv in "unix" mode, where a single dash introduces a
+    # cluster of SHORT flags -- so `-base_port 7000` is read as `-b -a -s -e ...` and either errors
+    # or, worse, assigns the value to a different parameter. `--long_name value` is the only form
+    # that is reliable for every parameter.
+    command: >
+      ddp_gateway --bind 0.0.0.0 --gateway_port 8080
+                  --roster /etc/didip/roster.json
+                  --ms_health_freq 15
+    ports:
+      - "${DDP_PUBLISHED_PORT:-7080}:8080"
+      - "127.0.0.1:7020:2222"    # debug ssh; loopback-only so it is never exposed off-host
+    healthcheck:
+      # probes from inside the container, i.e. from 127.0.0.1, which the password gate exempts
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---- Static FSDB (prefix st, ms_id 1 -> 7001) --------------------------------------------
+  st:
+    <<: *didip
+    volumes:
+      # read-only on purpose: an online service is defined never to write into the FSDB
+      - "${DDP_FSDB_ROOT:?set DDP_FSDB_ROOT to the FSDB directory on the host}:/mnt/data/fsdb:ro"
+    # --bind 0.0.0.0 : the config default 127.0.0.1 would make the service unreachable from the
+    #                  gateway container (each container has its own loopback).
+    # --host st      : what this service ADVERTISES in /info and to peers; it must resolve on the
+    #                  docker network, so it is the compose service name, not localhost.
+    # DOUBLE dashes are mandatory here -- see the note on the gateway command. `-proxy_url …` is
+    # silently IGNORED (the service would run proxyless and never bootstrap), and `-bind`/`-host`/
+    # `-base_port` fail outright. `-v` is a genuine short flag and is correct as one dash.
+    command: >
+      ddpa_static_fsdb_serve --bind 0.0.0.0 --host st --base_port 7000
+                             --fsdb_root /mnt/data/fsdb
+                             --proxy_url http://gateway:8080 -v
+    ports:
+      - "127.0.0.1:7021:2222"   # debug ssh only -- the service itself is reached via the gateway
+    depends_on: [gateway]
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u; u.urlopen('http://127.0.0.1:7001/st/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      # the FSDB is reduced into RAM at load: a big slice needs minutes before /health answers,
+      # and start_period keeps that from counting as failures
+      start_period: 300s
+
+  # ---- Slicer (prefix sl, ms_id 5 -> 7005) -------------------------------------------------
+  sl:
+    <<: *didip
+    volumes:
+      - "${DDP_FSDB_ROOT:?set DDP_FSDB_ROOT to the FSDB directory on the host}:/mnt/data/fsdb:ro"
+    command: >
+      ddpa_slicer_serve --bind 0.0.0.0 --host sl --base_port 7000
+                        --fsdb_root /mnt/data/fsdb
+                        --proxy_url http://gateway:8080 -v
+    ports:
+      - "127.0.0.1:7025:2222"   # debug ssh only
+    depends_on: [gateway]
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u; u.urlopen('http://127.0.0.1:7005/sl/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
+
+  # ---- Cloudflare tunnel (opt-in: `--profile tunnel` / `--profile tunnel-token`) -----------
+  # A sidecar that dials OUT to Cloudflare and serves the gateway from a public hostname, so
+  # nothing has to be port-forwarded or firewalled open. It reaches the gateway over the private
+  # network by service name, exactly as a browser on the host would through the published port.
+  #
+  # >>> READ doc/docker_images.md BEFORE exposing this publicly: a tunnel puts another hop in
+  # >>> front of the gateway, which BREAKS the IP-based password gate (every visitor arrives with
+  # >>> the tunnel's address, so one correct password admits everybody). Use Cloudflare Access, or
+  # >>> ask for the trusted-hops option to be added to the gate.
+
+  # Ephemeral: prints a https://<random>.trycloudflare.com URL in its logs. No account needed.
+  #   docker compose --profile tunnel up
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://gateway:8080
+    depends_on: [gateway]
+    networks: [didip]
+
+  # Named tunnel: a stable hostname from your own Cloudflare Zero Trust dashboard, which is also
+  # where the routing (hostname -> http://gateway:8080) and any Access policy are configured.
+  #   CLOUDFLARE_TUNNEL_TOKEN=… docker compose --profile tunnel-token up
+  tunnel-named:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel-token]
+    restart: unless-stopped
+    # The token goes through the environment, NOT the command line: cloudflared reads TUNNEL_TOKEN
+    # natively, and a credential in `command:` is visible to anyone who can run `ps` or
+    # `docker inspect`.
+    # It must also NOT use the required-variable form (a colon-question-mark default): compose
+    # interpolates the WHOLE file before profiles are applied, so a required variable in this
+    # inactive service aborts every plain `docker compose up`. Empty default instead, and
+    # cloudflared reports the missing token itself when the profile is actually used.
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:-}"
+    command: tunnel --no-autoupdate run
+    depends_on: [gateway]
+    networks: [didip]
+
+networks:
+  didip:
+    driver: bridge

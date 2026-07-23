@@ -1,0 +1,11 @@
+{# LEGACY SHIM -- renders nothing on purpose.
+
+   The basket widget used to be a floating overlay that each page opted into with
+       {% block topnav_extra %}{% include "_basket.html" %}{% endblock %}
+   It now lives in the context rail (#ctx_nav) that base.html renders on EVERY view, mounted there
+   once (when the service has a shared index) -- so a per-page include would only mount a SECOND
+   widget over a second BasketStore.
+
+   This file stays so the templates that still include it -- in this repo and in the out-of-tree
+   apps (ddpa_layout, ddpa_cei2json) -- keep rendering unchanged. Drop the include next time you
+   touch one of those templates; nothing needs it any more. #}

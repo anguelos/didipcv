@@ -1,0 +1,9 @@
+recursive-include src/ddp_util/default/ *.json
+recursive-include src/ddp_microservices/templates/ *.html
+# The served client assets: stylesheet, ES modules, icons, default_client_config.json. WITHOUT this
+# line an INSTALLED didip_util has templates but no static/, so every page renders unstyled with no
+# basket and no context rail and /<prefix>/icon.ico 404s -- while a source checkout works perfectly,
+# which makes it a confusing bug to meet for the first time inside a container. Blanket include on
+# purpose: the growing set of .js/.css/.svg/.png/.json here must never again depend on someone
+# remembering to add an extension.
+recursive-include src/ddp_microservices/static *

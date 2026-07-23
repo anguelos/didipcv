@@ -1,0 +1,12 @@
+{
+  "max_storage_bytes": 536870912,
+  "sync_interval_ms": 3000,
+  "sync_recheck_ms": 5000,
+  "max_basket_size": 100000,
+  "max_rendered_items": 500,
+  "ctxnav_default_pct": 20,
+  "ctxnav_min_pct": 8,
+  "ctxnav_max_pct": 60,
+  "developer_mode": true,
+  "user": "default_user"
+}

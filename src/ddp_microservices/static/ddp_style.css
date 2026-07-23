@@ -1,0 +1,292 @@
+      body {
+            background-color: #d1eba3;
+            font-family: 'Garamond', serif;
+            color: #3e2723;
+            /* keep the page clear of the context rail; 0px while it is collapsed */
+            padding-right: var(--ddp-ctxnav-w);
+      }
+
+      /* ---- context navigation rail (#ctx_nav: base.html + static/ddp_ctxnav.js) ---------------
+         A full-height dock on the right of every view, hosting all basket-related UI. It behaves
+         like the browser devtools docked right: while open it PUSHES the page (body padding and the
+         message bar both follow --ddp-ctxnav-w), and when totally collapsed it leaves nothing behind
+         -- no strip, no reserved width -- just the #ctx_nav_expand button in the topnav.
+
+         The whole layout hangs off two things on <html>, restored before first paint by the inline
+         script in base.html <head>:
+           --ddp-ctxnav-w    the rail's width (a % of the viewport); ABSENT -> the 0px below
+           .ctxnav-collapsed
+         Collapsing REMOVES the custom property instead of zeroing it, so this one declaration is
+         always what applies and nothing needs !important. The default width and the drag clamps are
+         NOT here -- they are `ctxnav_*_pct` in static/default_client_config.json. */
+      :root { --ddp-ctxnav-w: 0px; }
+      .ctx-nav { position: fixed; top: 0; right: 0; bottom: 0; width: var(--ddp-ctxnav-w);
+            z-index: 1500; display: flex; flex-direction: column; overflow: hidden;
+            background: Canvas; color: CanvasText; font: 13px/1.4 system-ui, sans-serif;
+            /* the left edge is an INSET shadow, not a border: a zero-width rail (the split second
+               before ddp_ctxnav.js applies the configured default on a first visit) then paints
+               nothing at all. */
+            box-shadow: -2px 0 10px rgba(0,0,0,.12), inset 1px 0 0 rgba(62,39,35,.35); }
+      html.ctxnav-collapsed .ctx-nav { display: none; }
+      .ctx-nav-head { flex: 0 0 auto; display: flex; align-items: center; gap: .4rem;
+            padding: .25rem .4rem .25rem .7rem; border-bottom: 1px solid rgba(128,128,128,.35); }
+      .ctx-nav-title { font-variant: small-caps; opacity: .7; }
+      .ctx-nav-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+            padding: .4rem; }
+      /* Shared-index status row, pinned under the rail body (#ctx_nav_index, wired by
+         ddp_ctxnav.js). Shown ONLY in developer mode: .ddp-debug is put on <body> by the basket
+         widget, so a production page never renders the row even though the markup is there. */
+      .ctx-nav-foot { flex: 0 0 auto; display: flex; align-items: center; gap: .4rem;
+            padding: .3rem .4rem .3rem .7rem; border-top: 1px solid rgba(128,128,128,.35);
+            font: 12px/1.4 system-ui, sans-serif; }
+      body:not(.ddp-debug) .ctx-nav-foot { display: none; }
+      .ctx-nav-idx-label { font-variant: small-caps; opacity: .7; }
+      .ctx-nav-idx-mark { font-weight: 700; }
+      .ctx-nav-idx-mark.ok { color: #2e9e2e; }
+      .ctx-nav-idx-mark.warn { color: #e08a00; }   /* cached index, last server check failed */
+      .ctx-nav-idx-mark.bad { color: #cc4646; }
+      .ctx-nav-idx-hash { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; opacity: .6; font-family: ui-monospace, monospace; }
+      .ctx-nav-idx-update { flex: 0 0 auto; cursor: pointer; padding: .1rem .45rem; font: inherit;
+            color: inherit; background: transparent; border: 1px solid rgba(128,128,128,.5);
+            border-radius: .3rem; }
+      .ctx-nav-idx-update:disabled { opacity: .35; cursor: default; }
+
+      /* the left edge is the resize grip (the rail is the containing block) */
+      .ctx-nav-resize { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; z-index: 1;
+            cursor: col-resize; }
+      .ctx-nav-resize:hover { background: rgba(59,130,246,.35); }
+      html.ctxnav-resizing { cursor: col-resize; user-select: none; }
+      .ctx-nav-collapse { margin-left: auto; }
+      .ctx-nav-collapse, .ctx-nav-expand { cursor: pointer; padding: 0; width: 1.6rem; height: 1.6rem;
+            font: 1rem/1 system-ui, sans-serif; color: inherit; background: transparent;
+            border: 1px solid rgba(128,128,128,.5); border-radius: .3rem; }
+      /* the expand button exists on every page but is shown ONLY while the rail is collapsed */
+      .ctx-nav-expand { display: none; margin-left: auto; }
+      html.ctxnav-collapsed .ctx-nav-expand { display: inline-flex; align-items: center;
+            justify-content: center; }
+
+      /* the topnav is a row so #ctx_nav_expand can sit at its right end (margin-left: auto) */
+      .topnav { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+      /* Standardized entity-view header (view_header macro): a fixed layout so Root/Archive/Fond/
+         Charter (and every service) look the same and nothing jumps when switching microservices. */
+      .ddp-view-header { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap;
+            padding: .35rem .5rem; margin: 0 0 .5rem; border-bottom: 2px solid rgba(62,39,35,.25); }
+      .ddp-view-msname { flex: 0 0 9rem; max-width: 9rem; font-weight: 700; font-variant: small-caps;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+      .ddp-view-crumbs { flex: 1 1 auto; min-width: 0; font-size: 1.05rem; }
+      .ddp-view-crumbs a { text-decoration: none; }
+      .ddp-view-crumbs a:hover { text-decoration: underline; }
+      .ddp-view-crumbs .sep { margin: 0 .35rem; opacity: .5; }
+      .ddp-view-crumbs .here { font-weight: 700; }
+      .ddp-view-summary { flex: 0 0 auto; margin-left: auto; opacity: .75; font-size: .95rem; }
+      .ddp-view-subhead { padding: 0 .5rem .4rem; display: flex; align-items: center; gap: .8rem; }
+
+      /* Collapsible description box (view_description macro). Every listing view (root/archive/fond)
+         has one description div + one listing div; this is the description. Expanded by default;
+         ddp_collapse.js remembers the choice per view type. */
+      .ddp-view-desc { margin: 0 .5rem .6rem; }
+      .ddp-view-desc > summary { cursor: pointer; font-variant: small-caps; opacity: .7;
+            font-size: .9rem; list-style-position: inside; user-select: none; }
+      .ddp-view-desc > summary:hover { opacity: 1; }
+      .ddp-view-desc-body { padding: .3rem .2rem 0 1.1rem; }
+
+      /* Country nav (root view only): a flag row between the header and the description --
+         kept OUTSIDE the description so it never collapses. */
+      .ddp-country-nav { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0 .5rem .5rem; }
+      .ddp-country-nav a { text-decoration: none; font-size: 1.4rem; line-height: 1; }
+      .ddp-country-nav a:hover { text-decoration: none; transform: scale(1.15); }
+
+      /* Shared child-entity listing (_entity_listing.html): identical for archives-under-root,
+         fonds-under-archive, charters-under-fond so the listing never moves between views. */
+      .ddp-listing { margin: 0 .5rem; }
+      .ddp-entity-list { width: 100%; border-collapse: collapse; margin: 0; }
+      .ddp-entity-list td { border: none; padding: .25rem .5rem; }
+      .ddp-entity-list td.idx { width: 3rem; text-align: right; opacity: .55;
+            font-variant-numeric: tabular-nums; }
+      .ddp-entity-list tr:nth-child(even) { background: rgba(62,39,35,.05); }
+
+      /* ---- Shared charter viewer (_charter_modes.html + ddp_charter.js) -----------------------
+         One greedy full-height box with a single radio-button row of view modes on top, identical
+         across every microservice so nothing jumps when you switch. ddp_charter.js sets .height to
+         fill the viewport under the header; the panels area then fills what is left of the box. */
+      .ddp-charter-viewer { display: flex; flex-direction: column; min-height: 0;
+            height: 80vh; /* fallback; ddp_charter.js overrides with a measured pixel height */ }
+      .ddp-mode-panels { position: relative; flex: 1 1 auto; min-height: 0; }
+      .ddp-mode-panel { position: absolute; inset: 0; overflow: auto; }
+      .ddp-mode-panel[hidden] { display: none; }
+
+      /* the radio row rendered as a segmented button strip */
+      .ddp-mode-row { display: flex; gap: .25rem; padding: .3rem 0 .5rem; flex: 0 0 auto; }
+      .ddp-mode-row .ddp-mode { cursor: pointer; user-select: none; }
+      .ddp-mode-row .ddp-mode input { position: absolute; opacity: 0; width: 0; height: 0; }
+      .ddp-mode-row .ddp-mode span { display: inline-block; padding: .3rem .8rem; font-variant: small-caps;
+            border: 1px solid #8d6e63; border-radius: .3rem; background: #fffbe6; color: #5d4037; }
+      .ddp-mode-row .ddp-mode input:checked + span { background: #8d6e63; color: #fffbe6; }
+      .ddp-mode-row .ddp-mode input:focus-visible + span { outline: 2px solid #3e2723; }
+      .ddp-mode-row .ddp-mode.disabled { cursor: default; }
+      .ddp-mode-row .ddp-mode.disabled span { opacity: .4; border-style: dashed; }
+
+      /* MODE image: one image fitted to the box height, centered; nav buttons overlaid */
+      .ddp-imgfit { position: absolute; inset: 0; }
+      .ddp-imgfit-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+      .ddp-imgfit-img { display: none; max-height: 100%; max-width: 100%; width: auto; height: auto;
+            object-fit: contain; }
+      .ddp-imgfit-img.current { display: block; }
+      .ddp-imgfit-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+            border: none; background: rgba(62,39,35,.55); color: #fffbe6; font-size: 2rem; line-height: 1;
+            padding: .2rem .6rem; cursor: pointer; border-radius: .3rem; }
+      .ddp-imgfit-nav:hover { background: rgba(62,39,35,.8); }
+      .ddp-imgfit-nav.prev { left: .4rem; }
+      .ddp-imgfit-nav.next { right: .4rem; }
+      .ddp-imgfit-counter { position: absolute; bottom: .4rem; left: 50%; transform: translateX(-50%);
+            z-index: 2; background: rgba(62,39,35,.55); color: #fffbe6; padding: .1rem .5rem;
+            border-radius: .3rem; font-size: .9rem; }
+
+      /* MODE CEI: read-only, copyable xml panel */
+      .ddp-cei { position: absolute; inset: 0; display: flex; flex-direction: column; }
+      .ddp-cei-toolbar { flex: 0 0 auto; display: flex; gap: .8rem; align-items: center;
+            padding: .2rem .3rem; }
+      .ddp-cei-copy { cursor: pointer; padding: .2rem .7rem; border: 1px solid #8d6e63; border-radius: .3rem;
+            background: #fffbe6; color: #5d4037; font-variant: small-caps; }
+      .ddp-cei-text { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: .5rem;
+            background: #fffdf5; border: 1px solid #d7ccc8; border-radius: .3rem; white-space: pre;
+            font-family: ui-monospace, 'Cascadia Code', Menlo, monospace; font-size: .82rem;
+            color: #3e2723; tab-size: 2; }
+
+      /* MODE column: every image stacked, each full width, scrolling vertically */
+      .ddp-imgcol { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
+      .ddp-imgcol-img { display: block; width: 100%; height: auto; margin: 0 0 .5rem; }
+      table {
+        width: 100%; /* Adjust table width to be less than 100% */
+        border-collapse: collapse;
+        margin: auto; /* Center the table */
+      }
+      th, td {
+        padding: 10px;
+        border: 1px solid #ddd;
+        text-align: left;
+      }
+      th {
+        background-color: #4CAF50;
+        color: white;
+      }
+      tr:nth-child(even) {
+        background-color: #f2f2f2;
+      }
+      /* Set column widths based on the proportions [2, 8, 7, 4, 2, 12] */
+      th:nth-child(1), td:nth-child(1) {
+        width: 5%; /* 2 parts */
+      }
+      th:nth-child(2), td:nth-child(2) {
+        width: 20%; /* 8 parts */
+      }
+      th:nth-child(3), td:nth-child(3) {
+        width: 17.5%; /* 7 parts */
+      }
+      th:nth-child(4), td:nth-child(4) {
+        width: 10%; /* 4 parts */
+      }
+      th:nth-child(5), td:nth-child(5) {
+        width: 5%; /* 2 parts */
+      }
+      th:nth-child(6), td:nth-child(6) {
+        width: 30%; /* 12 parts */
+      }
+
+    
+    .list_fonds {
+        width: 80%;
+        margin: auto;
+    }
+
+    .list_charters {
+        width: 80%;
+        margin: auto;
+    }
+
+
+    /* pagination styles */
+    .pagination {
+        display: inline-block;
+        margin: 10px 0;
+    }
+    .pagination a {
+        color: #4CAF50;
+        float: left;
+        padding: 8px 16px;
+        text-decoration: none;
+        border: 1px solid #ddd;
+        margin: 0 8px;
+        border-radius: 4px;
+        font-size: 18px;
+    }
+    .pagination a:hover {
+        background-color: #ddd;
+    }
+    .pagination .current {
+        background-color: #4CAF50;
+        color: white;
+        pointer-events: none;
+        border: 1px solid #4CAF50;
+    }
+
+    /* image wrapper for charter view */
+        /* Outer wrapper to position arrows + constrain size */
+    .charter-image-strip-wrapper {
+      position: relative;
+      width: 800px;      /* fixed width */
+      height: 800px;     /* fixed height */
+      margin: 1rem auto;
+      overflow: hidden;
+    }
+
+    /* Scrollable inner container */
+    .charter-image-strip {
+      display: flex;
+      gap: 8px;
+      height: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-behavior: smooth;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+
+    .charter-image-strip img {
+      height: 100%;       /* fit the strip height */
+      width: auto;
+      object-fit: cover;  /* crop nicely if needed */
+      border-radius: 4px;
+      flex-shrink: 0;     /* prevent images from shrinking */
+    }
+
+    /* Optional scroll buttons */
+    .charter-scroll-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      z-index: 1;
+    }
+
+    .charter-scroll-btn.left {
+      left: 4px;
+    }
+
+    .charter-scroll-btn.right {
+      right: 4px;
+    }
+    .charter-scroll-btn:hover {
+      background: rgba(0, 0, 0, 0.8);
+    }

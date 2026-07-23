@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import breadcrumb, view_region %}
+
+{% block title %}Archive {{ obj.name }}{% endblock %}
+
+{# client-side basket; it reads the standardized views below (context = this archive) #}
+{% block topnav_extra %}{% include "_basket.html" %}{% endblock %}
+
+{% block content %}
+  {% call view_region('archive', obj.name, context=True) %}
+  <div class="list_fonds">
+    {{ breadcrumb([
+        ("FSDB", route_prefix ~ "/paged_fsdb/"),
+        (obj.name, route_prefix ~ "/archive/" ~ obj.name),
+    ]) }}
+    <h2>{{ obj.flag_emoji }} Contained Fonds: {{ obj.fond_paths|length }}</h2>
+    {% if obj.fond_paths|length > 10 %}
+      {% include "generic_pagination.html" %}
+    {% endif %}
+    <table border="0">
+      {% for fond in fondlist %}
+        <tr><td>{{ fond.0 }}</td><td><a href="{{ route_prefix }}/fond/{{ fond.1 }}">{{ fond.2 }}</a></td></tr>
+      {% endfor %}
+    </table>
+    {% if obj.fond_paths|length > 10 %}
+      {% include "generic_pagination.html" %}
+    {% endif %}
+  </div>
+  {% endcall %}
+{% endblock %}

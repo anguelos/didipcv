@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Static FSDB Rendering</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='ddp_style.css') }}">
+</head>
+<body>
+    <div class="list_archives">
+        <h2><a href="/paged_fsdb/">FSDB</a> at {{ obj.root_path }}</h2>
+        <h2>
+            {% for country, country_offset, count in country_count %}
+                <a href="/paged_fsdb/{{country_offset}}/{{count}}" title="{{count}}">{{ country }}</a>
+            {% endfor %}
+        </h2>
+        <h2>Contained Archives: {{ obj.archive_paths|length }}</h2>
+        {% if obj.archive_paths|length > 10 %}
+            {% include "generic_pagination.html" %}
+        {% endif %}
+        <table border="0">  
+        {% for archive in archivelist %}
+        <tr><td>{{archive.0}}</td><td><a href="/paged_archive/{{archive.1}}">{{archive.2}}</a></td></tr>
+        {% endfor %}
+        </table>
+        {% if obj.archive_paths|length > 10 %}
+            {% include "generic_pagination.html" %} 
+        {% endif %}
+    </div>
+    <p></p>
+</body>
+</html>

@@ -1,0 +1,100 @@
+{#
+  Shared Jinja macros for DiDip microservice templates.
+#}
+
+{#
+  breadcrumb(crumbs): render a "A / B / C" trail.
+    crumbs - a list of (label, href) pairs; a falsy href renders plain text (the
+             current/last node). Example:
+               {{ breadcrumb([("FSDB", "/paged_fsdb/"),
+                              (archive, "/paged_archive/" ~ archive),
+                              (md5, None)]) }}
+#}
+{% macro breadcrumb(crumbs) %}
+<h2 class="breadcrumb">
+  {% for label, href in crumbs %}
+    {% if href %}<a href="{{ href }}">{{ label }}</a>{% else %}{{ label }}{% endif %}
+    {%- if not loop.last %} / {% endif %}
+  {% endfor %}
+</h2>
+{% endmacro %}
+
+{#
+  view_header(crumbs, summary=None): the standardized entity-view header -- one fixed row shared by
+  Root / Archive / Fond / Charter on EVERY microservice, so nothing jumps when you hand a datum over
+  to a sibling. Three slots, styled by .ddp-view-header & co. in static/ddp_style.css:
+
+    [ service name ] [ A / B / C breadcrumbs ] [ summary (pushed right) ]
+
+    crumbs  - a list of (label, href) pairs, exactly like breadcrumb(); a falsy href marks the
+              current node, rendered as <span class="here"> rather than a link.
+    summary - optional right-aligned note (e.g. the archival signature + country flag).
+
+  MUST be imported `with context`: the service-name slot reads `service_name` from the common
+  render context (DidipMicroservice.render_context). Imported without it, that slot renders empty.
+
+    {% from "_macros.html" import view_header with context %}
+    {{ view_header([("FSDB", p ~ "/paged_fsdb/"), (md5, none)], summary=obj.archival_signature) }}
+#}
+{% macro view_header(crumbs, summary=None) -%}
+<div class="ddp-view-header">
+  <span class="ddp-view-msname" title="{{ service_name }}">{{ service_name }}</span>
+  <nav class="ddp-view-crumbs">
+    {%- for label, href in crumbs %}
+      {%- if href %}<a href="{{ href }}">{{ label }}</a>
+      {%- else %}<span class="here">{{ label }}</span>{% endif %}
+      {%- if not loop.last %}<span class="sep">/</span>{% endif %}
+    {%- endfor %}
+  </nav>
+  {%- if summary %}<span class="ddp-view-summary">{{ summary }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{#
+  view_description(type, label='description'): the collapsible description box that every listing
+  view (root / archive / fond) carries above its listing. A <details> -- .ddp-view-desc in
+  static/ddp_style.css styles `> summary` and the body -- so collapsing needs no JavaScript at all;
+  static/ddp_collapse.js only REMEMBERS the choice, keyed by `type`, across pages and reloads.
+
+  Rendered EXPANDED (`open`); a stored preference for that view type overrides it on load. `type`
+  is the view type this description belongs to ('root', 'archive', 'fond', …) -- it is the storage
+  key, and it is why two different views never share a collapse state. Note this box is NOT a view
+  div: it carries no `#viewed_<type>` id and may sit inside a view_region without breaking the
+  no-nested-views rule.
+
+    {% call view_description('fond') %}<p>Charters held in this fond…</p>{% endcall %}
+#}
+{% macro view_description(type, label='description') -%}
+<details class="ddp-view-desc" data-view="{{ type }}" open>
+  <summary>{{ label }}</summary>
+  <div class="ddp-view-desc-body">{{ caller() }}</div>
+</details>
+{%- endmacro %}
+
+{#
+  Standardized views (see the ddp_online skill + static/ddp_views.js). A view is a singleton
+  element `#viewed_<type>` carrying its value in data-value; `context=True` tags THE ONE view
+  that is the page's current context (.ddp-view-context) -- what the basket etc. act on.
+
+  A view div has exactly TWO legal shapes, and view divs MUST NOT be nested in one another:
+   * view_region(type, value, context) -- WRAPS the on-screen region for that view (a call
+     block). It is a real box, so it is the future drag-and-drop handle for the view.
+   * view_marker(type, value, context) -- an EMPTY hidden marker (no box, no DnD): use it when
+     the page references an entity but shows no region for it (e.g. the ancestor archive on a
+     fond page).
+  `value` for a set (charter_list / charter_ranking) is the space-joined md5s ON THIS PAGE.
+
+  Example (fond page): fond header in one region, the charter table in another (siblings):
+    {% call view_region('fond', obj.name, context=True) %}…fond header…{% endcall %}
+    {% call view_region('charter_list', page_md5s|join(' ')) %}…charter table…{% endcall %}
+    {{ view_marker('archive', obj.archive.name) }}
+#}
+{% macro view_marker(type, value=None, context=False) -%}
+<div id="viewed_{{ type }}" class="ddp-view{% if context %} ddp-view-context{% endif %}"{% if value is not none %} data-value="{{ value }}"{% endif %} hidden></div>
+{%- endmacro %}
+
+{% macro view_region(type, value=None, context=False) -%}
+<div id="viewed_{{ type }}" class="ddp-view{% if context %} ddp-view-context{% endif %}"{% if value is not none %} data-value="{{ value }}"{% endif %}>
+{{ caller() }}
+</div>
+{%- endmacro %}

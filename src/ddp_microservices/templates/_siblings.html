@@ -1,0 +1,50 @@
+{# Cross-service topnav box. Shows EVERY known sibling (the whole registry, pre-sorted by prefix in
+   render_context). Link states for a non-self sibling:
+     * a page CONTEXT view is present (charter/fond/archive) AND the sibling advertises it -> an
+       enabled DEEP hand-off link (`/<prefix>/<type>/<value>`);
+     * NO context view (root / list page) -> an enabled HOME link (`/<prefix>/`);
+     * a context view is present but the sibling does NOT advertise it -> GREYED, no link (its
+       hand-off href is N/A here) -- but icon shown, since it is up;
+     * DOWN -> GREYED, no link, prefix badge (its icon route is unreachable).
+   Icons come from each peer's own `/<prefix>/icon.ico`. Origin (`absolute_links`, from proxy_url):
+   false -> root-relative `/<prefix>/...` (single origin behind a front proxy); true -> absolute to
+   each sibling's `base_url` (proxyless). Context: `handoff_type`/`handoff_value`, or `sibling_md5`. #}
+{%- set _ht = (handoff_type if (handoff_type is defined and handoff_type)
+               else ('charter' if (sibling_md5 is defined and sibling_md5) else none)) -%}
+{%- set _hv = (handoff_value if (handoff_value is defined and handoff_value)
+               else (sibling_md5 if (sibling_md5 is defined and sibling_md5) else none)) -%}
+<style>
+  .topnav-siblings { display: inline-flex; align-items: center; gap: .3rem;
+    border: 1px solid rgba(80, 80, 80, .55); border-radius: .5rem; padding: .15rem .4rem; }
+  .topnav-siblings .topnav-sibling { display: inline-flex; align-items: center; }
+  .topnav-siblings .topnav-sibling img { display: block; }
+  .topnav-siblings .disabled { opacity: .35; filter: grayscale(1); cursor: default; }
+  /* the current service: shown in full colour, non-clickable, with a distinct highlight */
+  .topnav-siblings .current { cursor: default; border-radius: .35rem;
+    outline: 2px solid #4CAF50; background: rgba(76, 175, 80, .18); }
+  .topnav-siblings .prefix-badge { font: 12px/2.2 ui-monospace, monospace; padding: 0 .3rem; }
+</style>
+<span class="topnav-siblings">
+  {% for s in siblings %}
+    {%- set _base = s.url if (absolute_links | default(false)) else '' -%}
+    {%- set _has_ctx = _ht and _hv -%}
+    {%- set _can = s.alive and (not s.is_self) and _has_ctx and (_ht in s.views) -%}
+    {# enabled only if it can deep-link (context it supports) OR there is no context (-> home) #}
+    {%- set _linkable = s.alive and (not s.is_self) and (_can or not _has_ctx) -%}
+    {% if s.is_self -%}
+      {# self: full-colour, non-clickable; its icon from its OWN canonical route #}
+      <span class="topnav-sibling current" title="{{ s.name }} (current)"><img src="{{ route_prefix }}/icon.ico" height="32" alt="{{ s.name }}"></span>
+    {%- elif _linkable -%}
+      {%- set _href = (_base ~ '/' ~ s.prefix ~ '/' ~ _ht ~ '/' ~ _hv) if _can else (_base ~ '/' ~ s.prefix ~ '/') -%}
+      <a class="topnav-sibling{% if _can %} can-handoff{% endif %}" href="{{ _href }}"
+         title="{{ s.name }}{% if _can %} — open this {{ _ht }}{% else %} — home{% endif %}"><img src="{{ _base }}/{{ s.prefix }}/icon.ico" height="32" alt="{{ s.name }}"></a>
+    {%- elif s.alive -%}
+      {# alive but does NOT support the current context view -> greyed, no link (href N/A); icon shown #}
+      <span class="topnav-sibling disabled" title="{{ s.name }} — can't open this {{ _ht }} here"><img src="{{ _base }}/{{ s.prefix }}/icon.ico" height="32" alt="{{ s.name }}"></span>
+    {%- else -%}
+      {# down: its icon route is unreachable, so show a greyed prefix badge instead of a broken image #}
+      <span class="topnav-sibling disabled"
+            title="{{ s.name }} — down{% if s.launch_cmd %} · launch: {{ s.launch_cmd }}{% endif %}"><span class="prefix-badge">{{ s.prefix }}</span></span>
+    {%- endif %}
+  {% endfor %}
+</span>

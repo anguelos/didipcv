@@ -1,0 +1,22 @@
+<!-- Shared pagination. Links carry class="ddp-nav": on a SCOPED page static/ddp_scope.js
+     intercepts the click and re-POSTs the active basket to the same href, so paging keeps its
+     scope (skip/item_count stay in the URL path; only the basket travels in the body).
+     On an unscoped page the class is inert. -->
+<!-- templates/_card.html -->
+<!-- base_url : str eg "/classitems/search/", 
+ format : str eg "html"  json
+ fpcnl_pagers: Tuple[Tuple(int, int), Tuple(int, int), Tuple(int, int), Tuple(int, int), Tuple(int, int)]
+ first: Tuple(int, int)  prev: Tuple(int, int), 
+ current: Tuple(int, int), following: Tuple(int, int), last: Tuple(int, int) -->
+
+    <div class="pagination">
+      <a class="ddp-nav" href="{{paging_base_url}}{{fpcnl_pagers[0].0}}/{{fpcnl_pagers[0].1}}?format={{format}}" 
+      title="First Page ({{fpcnl_pagers[0].0}}-{{fpcnl_pagers[0].1}})">⏮</a>
+      <a class="ddp-nav" href="{{paging_base_url}}{{fpcnl_pagers[1].0}}/{{fpcnl_pagers[1].1}}?format={{format}}" 
+        title="Previous Page ({{fpcnl_pagers[1].0}}-{{fpcnl_pagers[1].1}})">◀</a>
+      <a class="current" href="#" title="Current Page">●</a>
+      <a class="ddp-nav" href="{{paging_base_url}}{{fpcnl_pagers[3].0}}/{{fpcnl_pagers[3].1}}?format={{format}}" 
+        title="Next Page ({{fpcnl_pagers[3].0}}-{{fpcnl_pagers[3].1}})">▶</a>
+      <a class="ddp-nav" href="{{paging_base_url}}{{fpcnl_pagers[4].0}}/{{fpcnl_pagers[4].1}}?format={{format}}" 
+        title="Last Page ({{fpcnl_pagers[4].0}}-{{fpcnl_pagers[4].1}})">⏭</a>
+    </div>
